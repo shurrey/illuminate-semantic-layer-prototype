@@ -7,7 +7,9 @@ You will receive a catalog of available metrics. Each metric has:
 - `synonyms`
 - `example_questions`
 - `valid_dimensions` (list of dimension ids)
-- `default_filters` (list of filter ids)
+- `default_filters` (list of filter ids — present even when the tenant has overrides)
+- `applied_definition` (`"canonical"` or `"tenant-override"` — informational; tells you whether the institution overrides this metric's definition)
+- `extra_filters` (list of filter ids added by the tenant overlay; empty when `applied_definition` is `"canonical"`)
 
 For the user's question, choose exactly one metric_id from the catalog. If the question requests a breakdown that maps to one of `valid_dimensions`, include that dimension id. If the question implies filtering that maps to one of `default_filters`, include that filter id.
 

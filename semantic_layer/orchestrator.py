@@ -4,8 +4,9 @@ The orchestrator is the only module that imports anthropic. It accepts an inject
 client in the constructor so tests can mock it. ANTHROPIC_API_KEY must be set in
 the environment for live use.
 
-Model: claude-sonnet-4-6. Adaptive thinking. JSON output via output_config.format.
-No assistant prefills (returns 400 on Sonnet 4.6).
+Model: claude-sonnet-4-6. JSON output via output_config.format for the planner.
+No assistant prefills (returns 400 on Sonnet 4.6). Extended thinking is not enabled
+(planner returns structured JSON; narrator output is short prose — both fine without).
 """
 
 from __future__ import annotations
@@ -17,6 +18,7 @@ from typing import Any
 
 import anthropic
 import duckdb
+from pydantic import ValidationError
 
 from .engine import compile_sql, resolve
 from .models import (
@@ -131,8 +133,10 @@ class Orchestrator:
             data = json.loads(text)
         except json.JSONDecodeError as e:
             raise PlannerError(f"planner did not return JSON: {e}") from e
-
-        plan = QueryPlan(**data)
+        try:
+            plan = QueryPlan(**data)
+        except ValidationError as e:
+            raise PlannerError(f"planner returned malformed plan: {e}") from e
         self._validate_plan(plan, canonical, tenant)
         return plan
 
@@ -167,12 +171,14 @@ class Orchestrator:
         question: str,
         merged: MergedMetric,
         rows: list[dict[str, Any]],
+        tenant_id: str = "canonical",
     ) -> str:
         assert len(rows) <= MAX_NARRATOR_ROWS, (
             f"narrator must only see aggregates; got {len(rows)} rows (max {MAX_NARRATOR_ROWS})"
         )
 
         provenance = {
+            "tenant_id": tenant_id,
             "metric_id": merged.id,
             "display_name": merged.canonical.display_name,
             "applied_definition": merged.applied_definition,
@@ -225,7 +231,7 @@ class Orchestrator:
 
         rows = [dict(zip(cols, r, strict=True)) for r in raw_rows]
 
-        narrative = self.narrate(question, merged, rows)
+        narrative = self.narrate(question, merged, rows, tenant_id=tenant_id)
 
         value: float | None = None
         if len(rows) == 1 and len(rows[0]) == 1:
