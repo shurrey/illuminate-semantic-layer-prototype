@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Illuminate Semantic Layer Demo</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+         max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #222; }
+  h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+  .controls { display: flex; gap: 0.5rem; margin: 1rem 0; }
+  .controls select, .controls input { padding: 0.5rem; font-size: 1rem; }
+  .controls input { flex: 1; }
+  .controls button { padding: 0.5rem 1rem; font-size: 1rem; }
+  .narrative { background: #fafafa; padding: 1rem; border-left: 4px solid #555;
+               font-size: 1.05rem; line-height: 1.5; white-space: pre-wrap; }
+  details { margin: 1rem 0; }
+  details summary { cursor: pointer; padding: 0.5rem 0; font-weight: 600; }
+  details > div, details > pre { padding-left: 1rem; }
+  pre { background: #f4f4f4; padding: 0.75rem; overflow-x: auto; font-size: 0.85rem; }
+  table { border-collapse: collapse; width: 100%; margin-top: 0.5rem; }
+  th, td { padding: 0.5rem; text-align: left; border-bottom: 1px solid #ddd; font-size: 0.9rem; }
+  th { background: #f0f0f0; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px;
+           font-size: 0.8rem; font-weight: 600; }
+  .badge-canonical { background: #d4edda; color: #155724; }
+  .badge-override  { background: #f3d1f4; color: #6c2469; }
+  .error { color: #b00020; padding: 1rem; background: #fdecea; }
+  .empty { color: #888; font-style: italic; padding: 1rem; }
+</style>
+</head>
+<body>
+  <h1>Illuminate Semantic Layer Demo</h1>
+  <p>Ask a higher-ed analytics question. Same question, different tenants &rarr; different correct answers.</p>
+
+  <div class="controls">
+    <select id="tenant"></select>
+    <input id="question" type="text" placeholder="e.g. what's our retention rate?"
+           value="what's our retention rate?" />
+    <button id="askBtn">Ask</button>
+  </div>
+
+  <div id="output" class="empty">Pick a tenant, type a question, click Ask.</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+async function loadTenants() {
+  const sel = $("tenant");
+  sel.innerHTML = '<option value="">(canonical / no tenant)</option>';
+  try {
+    const r = await fetch("/tenants");
+    const { tenants } = await r.json();
+    for (const t of tenants) {
+      const opt = document.createElement("option");
+      opt.value = t;
+      opt.textContent = t;
+      sel.appendChild(opt);
+    }
+  } catch (e) {
+    console.error("could not load tenants", e);
+  }
+}
+
+function badgeClass(applied) {
+  return applied === "tenant-override" ? "badge badge-override" : "badge badge-canonical";
+}
+
+function renderTable(rows) {
+  if (!rows || rows.length === 0) return '<p class="empty">No rows.</p>';
+  const cols = Object.keys(rows[0]);
+  let html = '<table><thead><tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+  for (const r of rows) {
+    html += '<tr>' + cols.map(c => `<td>${r[c]}</td>`).join('') + '</tr>';
+  }
+  return html + '</tbody></table>';
+}
+
+function render(result) {
+  const m = result.metric_used;
+  const owner = m.overlay ? m.overlay.owner : m.canonical.owner;
+  const cls = badgeClass(m.applied_definition);
+  const diff = m.overlay ? `<p><strong>Overlay diff:</strong> ${m.overlay.diff_description}</p>` : '';
+  return `
+    <div class="narrative">${result.narrative}</div>
+    <details open>
+      <summary>Provenance</summary>
+      <div>
+        <p><strong>Metric:</strong> ${m.canonical.display_name} <code>(${m.id})</code></p>
+        <p><strong>Applied definition:</strong> <span class="${cls}">${m.applied_definition}</span></p>
+        <p><strong>Owner:</strong> ${owner}</p>
+        ${diff}
+        <p><strong>Tenant:</strong> ${result.tenant_id}</p>
+        <p><strong>Execution time:</strong> ${result.execution_ms ? result.execution_ms.toFixed(1) + ' ms' : 'n/a'}</p>
+      </div>
+    </details>
+    <details>
+      <summary>SQL executed</summary>
+      <pre>${result.sql_executed.replace(/</g, "&lt;")}</pre>
+    </details>
+    <details>
+      <summary>Result rows (${result.data_rows})</summary>
+      <div>${renderTable(result.breakdown)}</div>
+    </details>
+    <details>
+      <summary>Raw JSON</summary>
+      <pre>${JSON.stringify(result, null, 2)}</pre>
+    </details>
+  `;
+}
+
+async function ask() {
+  const tenant = $("tenant").value || null;
+  const question = $("question").value.trim();
+  if (!question) return;
+  $("output").innerHTML = '<p class="empty">Asking&hellip;</p>';
+  try {
+    const r = await fetch("/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenant_id: tenant, question }),
+    });
+    if (!r.ok) {
+      const detail = (await r.json()).detail || r.statusText;
+      $("output").innerHTML = `<div class="error">Error ${r.status}: ${detail}</div>`;
+      return;
+    }
+    const result = await r.json();
+    $("output").innerHTML = render(result);
+  } catch (e) {
+    $("output").innerHTML = `<div class="error">${e.message}</div>`;
+  }
+}
+
+$("askBtn").addEventListener("click", ask);
+$("question").addEventListener("keydown", (e) => { if (e.key === "Enter") ask(); });
+loadTenants();
+</script>
+</body>
+</html>

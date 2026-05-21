@@ -28,6 +28,7 @@ from .models import (
     QueryResult,
     Tenant,
 )
+from .telemetry import Telemetry
 
 MODEL = "claude-sonnet-4-6"
 MAX_NARRATOR_ROWS = 1000
@@ -55,9 +56,11 @@ class Orchestrator:
         self,
         client: anthropic.Anthropic | None = None,
         model: str = MODEL,
+        telemetry: Telemetry | None = None,
     ) -> None:
         self.client = client if client is not None else anthropic.Anthropic()
         self.model = model
+        self.telemetry = telemetry
         self._plan_prompt = (_PROMPTS_DIR / "plan.md").read_text()
         self._narrate_prompt = (_PROMPTS_DIR / "narrate.md").read_text()
         self._cache: dict[tuple[str, str], QueryResult] = {}
@@ -215,44 +218,77 @@ class Orchestrator:
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        plan = self.plan(question, canonical, tenant)
-        merged = resolve(canonical, tenant, plan.metric_id)
+        plan: QueryPlan | None = None
+        merged: MergedMetric | None = None
+        sql: str | None = None
+        rows: list[dict[str, Any]] = []
+        execution_ms: float | None = None
 
-        # Filters/dimensions resolution: the engine accepts Filter/Dimension objects, not ids.
-        filter_objs = [f for f in merged.effective_filters if f.id in plan.filters]
-        dim_objs = [d for d in merged.valid_dimensions if d.id in plan.dimensions]
-        sql = compile_sql(merged, filters=filter_objs, dimensions=dim_objs)
+        try:
+            plan = self.plan(question, canonical, tenant)
+            merged = resolve(canonical, tenant, plan.metric_id)
 
-        t0 = time.perf_counter()
-        cursor = con.execute(sql)
-        raw_rows = cursor.fetchall()
-        cols = [d[0] for d in cursor.description]
-        execution_ms = (time.perf_counter() - t0) * 1000.0
+            # Filters/dimensions resolution: the engine accepts Filter/Dimension objects, not ids.
+            filter_objs = [f for f in merged.effective_filters if f.id in plan.filters]
+            dim_objs = [d for d in merged.valid_dimensions if d.id in plan.dimensions]
+            sql = compile_sql(merged, filters=filter_objs, dimensions=dim_objs)
 
-        rows = [dict(zip(cols, r, strict=True)) for r in raw_rows]
+            t0 = time.perf_counter()
+            cursor = con.execute(sql)
+            raw_rows = cursor.fetchall()
+            cols = [d[0] for d in cursor.description]
+            execution_ms = (time.perf_counter() - t0) * 1000.0
 
-        narrative = self.narrate(question, merged, rows, tenant_id=tenant_id)
+            rows = [dict(zip(cols, r, strict=True)) for r in raw_rows]
 
-        value: float | None = None
-        if len(rows) == 1 and len(rows[0]) == 1:
-            (v,) = rows[0].values()
-            try:
-                value = float(v)
-            except (TypeError, ValueError):
-                value = None
+            narrative = self.narrate(question, merged, rows, tenant_id=tenant_id)
 
-        result = QueryResult(
-            narrative=narrative,
-            value=value,
-            breakdown=rows,
-            metric_used=merged,
-            sql_executed=sql,
-            data_rows=len(rows),
-            tenant_id=tenant_id,
-        )
-        # Attach execution_ms via dict-style append for future telemetry.
-        # (QueryResult doesn't have execution_ms field yet — defer to Task 8.)
-        _ = execution_ms  # captured for future telemetry
+            value: float | None = None
+            if len(rows) == 1 and len(rows[0]) == 1:
+                (v,) = rows[0].values()
+                try:
+                    value = float(v)
+                except (TypeError, ValueError):
+                    value = None
+
+            result = QueryResult(
+                narrative=narrative,
+                value=value,
+                breakdown=rows,
+                metric_used=merged,
+                sql_executed=sql,
+                data_rows=len(rows),
+                execution_ms=execution_ms,
+                tenant_id=tenant_id,
+            )
+        except Exception as e:
+            if self.telemetry is not None:
+                self.telemetry.log_query(
+                    tenant_id=tenant_id,
+                    question=question,
+                    metric_id=plan.metric_id if plan else None,
+                    applied_definition=merged.applied_definition if merged else None,
+                    sql=sql,
+                    execution_ms=execution_ms,
+                    success=False,
+                    error=f"{type(e).__name__}: {e}",
+                    narrative=None,
+                )
+            raise
+
+        if self.telemetry is not None:
+            self.telemetry.log_query(
+                tenant_id=tenant_id,
+                question=question,
+                metric_id=merged.id,
+                applied_definition=merged.applied_definition,
+                sql=sql,
+                execution_ms=execution_ms,
+                success=True,
+                error=None,
+                narrative=result.narrative,
+            )
+
         self._cache[cache_key] = result
         return result
 

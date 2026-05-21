@@ -19,6 +19,7 @@ from rich.table import Table
 from .engine import compile_sql, load_canonical, load_tenant, resolve
 from .models import CanonicalCatalog, Tenant
 from .orchestrator import Orchestrator
+from .telemetry import Telemetry
 from .warehouse import connect
 
 app = typer.Typer(
@@ -69,13 +70,14 @@ def ask(
     tenant_obj = load_tenant(tenant) if tenant else None
     con = connect(db)
 
+    tel = Telemetry()
     api_key = os.environ.get("ANTHROPIC_API_KEY", "").strip()
 
     if api_key:
         # -------------------------------------------------------------------
         # Phase 2: Claude orchestrator path
         # -------------------------------------------------------------------
-        orch = Orchestrator()
+        orch = Orchestrator(telemetry=tel)
         result = orch.ask(question, canonical, tenant_obj, con)
         merged = result.metric_used
 
@@ -128,19 +130,48 @@ def ask(
             "[yellow]Note: narrative requires ANTHROPIC_API_KEY — using glossary fallback.[/yellow]"
         )
 
+        import time as _time
+
         metric_id = _resolve_metric_id(question, canonical, tenant_obj)
         if metric_id is None:
             console.print(
                 "[yellow]No matching metric in glossary. "
                 "Phase 2 will replace this with the Claude planner.[/yellow]"
             )
+            tenant_id_str = tenant_obj.id if tenant_obj else "canonical"
+            tel.log_query(
+                tenant_id=tenant_id_str,
+                question=question,
+                metric_id=None,
+                applied_definition=None,
+                sql=None,
+                execution_ms=None,
+                success=False,
+                error="no metric match",
+                narrative=None,
+            )
             raise typer.Exit(code=1)
 
         merged = resolve(canonical, tenant_obj, metric_id)
         sql = compile_sql(merged, filters=merged.effective_filters, dimensions=[])
 
+        t0 = _time.perf_counter()
         rows = con.execute(sql).fetchall()
         cols = [d[0] for d in con.description]
+        execution_ms = (_time.perf_counter() - t0) * 1000.0
+
+        tenant_id_str = tenant_obj.id if tenant_obj else "canonical"
+        tel.log_query(
+            tenant_id=tenant_id_str,
+            question=question,
+            metric_id=merged.id,
+            applied_definition=merged.applied_definition,
+            sql=sql,
+            execution_ms=execution_ms,
+            success=True,
+            error=None,
+            narrative=None,
+        )
 
         console.rule(f"[bold]{merged.canonical.display_name}[/bold]")
         console.print(f"applied_definition: [cyan]{merged.applied_definition}[/cyan]")

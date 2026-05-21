@@ -99,4 +99,5 @@ class QueryResult(BaseModel):
     metric_used: MergedMetric
     sql_executed: str
     data_rows: int
+    execution_ms: float | None = None
     tenant_id: str
