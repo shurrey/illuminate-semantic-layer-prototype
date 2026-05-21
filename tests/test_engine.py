@@ -15,3 +15,11 @@ def test_canonical_metric_has_required_provenance_fields():
     assert m.last_reviewed
     assert m.measure_sql
     assert m.example_questions
+
+
+def test_glossary_maps_canonical_synonyms():
+    from semantic_layer.engine import load_canonical
+
+    cat = load_canonical()
+    assert cat.glossary.synonyms["retention"] == "metric.retention_rate.term_to_term.v1"
+    assert cat.glossary.synonyms["fte"] == "metric.fte.v1"

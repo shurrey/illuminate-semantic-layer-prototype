@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -65,8 +65,8 @@ class MergedMetric(BaseModel):
     canonical: Metric
     overlay: OverlayMetric | None = None
     effective_measure_sql: str
-    effective_filters: list[Filter]
-    valid_dimensions: list[Dimension]
+    effective_filters: list[Filter] = Field(default_factory=list)
+    valid_dimensions: list[Dimension] = Field(default_factory=list)
 
 
 class Glossary(BaseModel):
@@ -95,7 +95,7 @@ class QueryPlan(BaseModel):
 class QueryResult(BaseModel):
     narrative: str
     value: float | None = None
-    breakdown: list[dict] = Field(default_factory=list)
+    breakdown: list[dict[str, Any]] = Field(default_factory=list)
     metric_used: MergedMetric
     sql_executed: str
     data_rows: int
