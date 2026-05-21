@@ -41,7 +41,7 @@ metrics:
              CASE WHEN n_in_term = 0 THEN NULL
                   ELSE 1.0 * n_retained / n_in_term END AS retention_rate
       FROM counts
-      WHERE from_ord < (SELECT MAX(ordinal) FROM terms)
+      WHERE from_ord < (SELECT MAX(term_ordinal) FROM base)
       ORDER BY from_ord
     default_filters: []
     valid_dimensions:
