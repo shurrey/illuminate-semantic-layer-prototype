@@ -203,8 +203,11 @@ def ask(
         sql = compile_sql(merged, filters=merged.effective_filters, dimensions=[])
 
         t0 = _time.perf_counter()
-        rows = con.execute(sql).fetchall()
-        cols = [d[0] for d in con.description]
+        try:
+            rows = con.execute(sql).fetchall()
+            cols = [d[0] for d in con.description]
+        finally:
+            con.close()
         execution_ms = (_time.perf_counter() - t0) * 1000.0
 
         tenant_id_str = tenant_obj.id if tenant_obj else "canonical"

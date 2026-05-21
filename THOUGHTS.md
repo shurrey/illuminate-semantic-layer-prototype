@@ -13,7 +13,7 @@ Running log of design decisions and the spots where the prototype deliberately d
 
 - No real tenant isolation — `--tenant` flag is trusted.
 - In-memory cache only; no Redis.
-- Test coverage scoped to overlay merge + metric resolution + SQL safety.
+- Test coverage focuses on overlay merge + metric resolution + SQL safety + telemetry + FastAPI smoke tests. The orchestrator's planner/narrator paths are exercised via mocked Anthropic clients; the live API path is spot-tested via `curl` rather than pytest.
 - Web UI is one HTML file. Default styling.
 - No Bedrock; direct Anthropic API.
 
