@@ -16,6 +16,18 @@ import time
 from pathlib import Path
 from typing import Any
 
+# Use the system trust store (e.g., macOS Keychain) for TLS verification when
+# `truststore` is installed. This makes the orchestrator work behind corporate
+# TLS-inspecting proxies (Zscaler, Netskope, etc.) where Python's bundled CA
+# list would reject the proxy's MITM cert. Must be called before importing
+# anthropic so its httpx client picks up the patched ssl module.
+try:
+    import truststore
+
+    truststore.inject_into_ssl()
+except ImportError:
+    pass
+
 import anthropic
 import duckdb
 from pydantic import ValidationError
