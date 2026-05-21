@@ -1,6 +1,6 @@
 # Illuminate Two-Tier Semantic Layer Prototype
 
-A laptop-only prototype that demonstrates Illuminate's two-tier AI semantic layer architecture: a canonical vendor model carries domain expertise across all customers; per-institution overlay YAMLs carry each campus's policy reality. The same natural-language question against the same data returns the institution's own answer, using the institution's own definition, with full provenance surfaced at every step — no row-level student data ever reaches the LLM.
+A laptop-only prototype that demonstrates a two-tier AI semantic layer architecture for higher-ed analytics, modeled on Blackboard's Illuminate platform: a canonical vendor model carries domain expertise across all customers; per-institution overlay YAMLs carry each campus's policy reality. The same natural-language question against the same data returns the institution's own answer, using the institution's own definition, with full provenance surfaced at every step — no row-level student data ever reaches the LLM.
 
 ## The architectural idea
 
@@ -30,7 +30,7 @@ flowchart TD
 ```bash
 make setup                        # uv sync --extra dev
 make data                         # seed DuckDB with synthetic students/terms/enrollments
-uv run pytest -q                  # 26 tests pass
+uv run pytest -q                  # 30 tests pass
 
 make demo                         # side-by-side comparison table (glossary fallback — no API key needed)
 
@@ -97,7 +97,7 @@ Key observations:
 | `semantic_layer/orchestrator.py` | Two-pass Claude planner + narrator |
 | `demo/scenarios.yaml` | Scripted demo questions |
 | `THOUGHTS.md` | Decisions, corner-cuts, and closing reflections |
-| `docs/superpowers/plans/2026-05-21-illuminate-semantic-layer-prototype.md` | The implementation plan executed |
+| `docs/superpowers/plans/2026-05-21-illuminate-semantic-layer-prototype.md` | Implementation plan (produced by the [superpowers](https://github.com/anthropic-experimental/superpowers) Claude Code skills used to build this) |
 
 ## Limits of the prototype
 
