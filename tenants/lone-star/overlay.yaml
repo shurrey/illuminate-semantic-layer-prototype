@@ -13,6 +13,7 @@ overrides:
         {% if where %}AND {{ where }}{% endif %}
       ),
       fall_pairs AS (
+        -- odd ordinals = Fall (Fall 2024 = 1, Fall 2025 = 3); seeded by data/generate.py
         SELECT a.student_id, a.term_ordinal AS from_ord
         FROM base a
         WHERE (a.term_ordinal % 2) = 1
@@ -30,7 +31,7 @@ overrides:
         LEFT JOIN fall_pairs
           ON fall_pairs.student_id = base.student_id
          AND fall_pairs.from_ord = base.term_ordinal
-        WHERE (base.term_ordinal % 2) = 1
+        WHERE (base.term_ordinal % 2) = 1   -- odd ordinals = Fall terms
         GROUP BY base.term_ordinal
       )
       SELECT from_ord AS from_term_ordinal,
@@ -39,5 +40,7 @@ overrides:
              CASE WHEN n_in_term = 0 THEN NULL
                   ELSE ROUND(1.0 * n_retained / n_in_term, 4) END AS retention_rate
       FROM counts
+      -- MAX(term_ordinal) - 1 excludes the last Fall (no two-terms-later in scope).
+      -- For our 4-term dataset: MAX=4 (Spring 2026), so from_ord < 3 keeps only Fall 2024.
       WHERE from_ord < (SELECT MAX(term_ordinal) - 1 FROM base)
       ORDER BY from_ord

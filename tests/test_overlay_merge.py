@@ -1,4 +1,4 @@
-from semantic_layer.engine import load_canonical, load_tenant, resolve
+from semantic_layer.engine import compile_sql, load_canonical, load_tenant, resolve
 
 
 def test_lone_star_overlay_resolves_with_provenance():
@@ -33,3 +33,13 @@ def test_metric_with_no_overlay_resolves_canonical():
 def test_lone_star_glossary_persistence_synonym():
     tenant = load_tenant("lone-star")
     assert tenant.glossary.synonyms["persistence"] == "metric.retention_rate.term_to_term.v1"
+
+
+def test_overlay_sql_compiles_to_safe_select():
+    cat = load_canonical()
+    tenant = load_tenant("lone-star")
+    merged = resolve(cat, tenant, "metric.retention_rate.term_to_term.v1")
+    sql = compile_sql(merged, filters=[], dimensions=[])
+    upper = sql.strip().upper()
+    assert upper.startswith("WITH")
+    assert "LIMIT" in upper
