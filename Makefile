@@ -1,10 +1,9 @@
-.PHONY: setup data demo test lint run-api clean
+.PHONY: setup data demo test format lint run-api clean
 
 PY := python
 
 setup:
-	uv venv --python 3.12
-	uv pip install -e ".[dev]"
+	uv sync --extra dev
 
 data:
 	uv run $(PY) -m data.generate
