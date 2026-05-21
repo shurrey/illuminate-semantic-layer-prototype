@@ -73,7 +73,8 @@ CREATE TABLE IF NOT EXISTS activity (
 CREATE TABLE IF NOT EXISTS degrees_conferred (
     student_id     VARCHAR REFERENCES students(student_id),
     program_id     VARCHAR REFERENCES programs(program_id),
-    term_id        VARCHAR REFERENCES terms(term_id)
+    term_id        VARCHAR REFERENCES terms(term_id),
+    PRIMARY KEY (student_id, program_id, term_id)
 );
 """
 
