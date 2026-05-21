@@ -33,9 +33,6 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["semantic_layer"]
 
-[tool.pytest.ini_options]
-addopts = "--continue-on-collection-errors"
-
 [tool.ruff]
 line-length = 100
 target-version = "py312"

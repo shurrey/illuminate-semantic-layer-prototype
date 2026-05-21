@@ -24,4 +24,4 @@ entities:
     primary_key: activity_id
   - id: DegreeConferred
     table: degrees_conferred
-    primary_key: student_id
+    primary_key: [student_id, program_id, term_id]
