@@ -16,3 +16,11 @@ Running log of design decisions and the spots where the prototype deliberately d
 - Test coverage scoped to overlay merge + metric resolution + SQL safety.
 - Web UI is one HTML file. Default styling.
 - No Bedrock; direct Anthropic API.
+
+## Overlay merge semantics
+
+- Canonical objects are frozen pydantic models; `merge()` never mutates them. A test enforces this.
+- `OverlayMetric.measure_sql` is `Optional[str]`; if `None`, the merger falls back to canonical SQL.
+- `OverlayMetric.override_default_filters` is a tri-state sentinel: `None` = keep canonical defaults; `[]` = explicitly clear; non-empty = replace.
+- Tenant glossary entries take precedence over canonical synonyms (the CLI resolver checks tenant first).
+- The `MergedMetric` carries both the canonical and overlay definitions plus an `applied_definition` discriminator, so provenance is structurally recoverable from any query result.

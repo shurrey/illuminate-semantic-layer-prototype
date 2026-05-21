@@ -1,0 +1,3 @@
+synonyms:
+  "persistence": "metric.retention_rate.term_to_term.v1"
+  "persistence rate": "metric.retention_rate.term_to_term.v1"
