@@ -14,6 +14,7 @@ from jinja2 import Environment, StrictUndefined
 
 from .models import (
     CanonicalCatalog,
+    Dimension,
     Filter,
     Glossary,
     MergedMetric,
@@ -22,8 +23,9 @@ from .models import (
     Tenant,
 )
 
-CANONICAL_DIR = Path("canonical")
-TENANTS_DIR = Path("tenants")
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+CANONICAL_DIR = _PROJECT_ROOT / "canonical"
+TENANTS_DIR = _PROJECT_ROOT / "tenants"
 DEFAULT_LIMIT = 10_000
 
 ALLOWED_TABLES = {
@@ -163,7 +165,7 @@ def _validate_select_only(sql: str) -> None:
 def compile_sql(
     metric: Metric | MergedMetric,
     filters: list[Filter],
-    dimensions: list,  # placeholder — Phase 2 uses Dimension objects
+    dimensions: list[Dimension],
 ) -> str:
     """Render the metric's Jinja template and validate the resulting SQL.
 
