@@ -1,0 +1,27 @@
+# Canonical entities. Declarative — engine does not enforce them in Phase 1,
+# but they are the contract metrics are written against.
+entities:
+  - id: Student
+    table: students
+    primary_key: student_id
+  - id: Term
+    table: terms
+    primary_key: term_id
+  - id: Program
+    table: programs
+    primary_key: program_id
+  - id: Course
+    table: courses
+    primary_key: course_id
+  - id: Section
+    table: sections
+    primary_key: section_id
+  - id: Enrollment
+    table: enrollments
+    primary_key: enrollment_id
+  - id: Activity
+    table: activity
+    primary_key: activity_id
+  - id: DegreeConferred
+    table: degrees_conferred
+    primary_key: student_id

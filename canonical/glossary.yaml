@@ -1,0 +1,7 @@
+synonyms:
+  "retention": "metric.retention_rate.term_to_term.v1"
+  "retention rate": "metric.retention_rate.term_to_term.v1"
+  "term-to-term retention": "metric.retention_rate.term_to_term.v1"
+  "fte": "metric.fte.v1"
+  "full-time equivalent": "metric.fte.v1"
+  "full-time students": "metric.fte.v1"

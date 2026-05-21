@@ -1,0 +1,86 @@
+metrics:
+
+  - id: metric.retention_rate.term_to_term.v1
+    version: "1.0.0"
+    display_name: Term-to-term retention rate
+    description: >
+      Of students enrolled in term N, the share who are also enrolled in term N+1.
+      Canonical definition counts any enrollment in either term (degree-seeking or not,
+      credit or audit) and applies to consecutive terms by ordinal.
+    owner: "Illuminate Data Product"
+    authority: vendor-canonical
+    last_reviewed: 2026-01-15
+    entity: Student
+    measure_sql: |
+      WITH base AS (
+        SELECT DISTINCT e.student_id, t.ordinal AS term_ordinal
+        FROM enrollments e
+        JOIN terms t ON t.term_id = e.term_id
+        {% if where %}WHERE {{ where }}{% endif %}
+      ),
+      pairs AS (
+        SELECT a.student_id, a.term_ordinal AS from_ord
+        FROM base a
+        WHERE EXISTS (
+          SELECT 1 FROM base b
+          WHERE b.student_id = a.student_id
+            AND b.term_ordinal = a.term_ordinal + 1
+        )
+      ),
+      counts AS (
+        SELECT base.term_ordinal AS from_ord,
+               COUNT(DISTINCT base.student_id) AS n_in_term,
+               COUNT(DISTINCT pairs.student_id) AS n_retained
+        FROM base
+        LEFT JOIN pairs ON pairs.student_id = base.student_id AND pairs.from_ord = base.term_ordinal
+        GROUP BY base.term_ordinal
+      )
+      SELECT from_ord AS from_term_ordinal,
+             n_in_term,
+             n_retained,
+             CASE WHEN n_in_term = 0 THEN NULL
+                  ELSE 1.0 * n_retained / n_in_term END AS retention_rate
+      FROM counts
+      WHERE from_ord < (SELECT MAX(ordinal) FROM terms)
+      ORDER BY from_ord
+    default_filters: []
+    valid_dimensions:
+      - id: by_program_level
+        display_name: By program level
+        sql: "(SELECT p.level FROM programs p JOIN students s ON s.program_id = p.program_id WHERE s.student_id = e.student_id)"
+    synonyms: ["retention", "term-to-term retention"]
+    example_questions:
+      - "What is our retention rate?"
+      - "How is term-to-term retention trending?"
+      - "Show retention by program level."
+
+  - id: metric.fte.v1
+    version: "1.0.0"
+    display_name: Full-time-equivalent (FTE) students
+    description: >
+      Canonical FTE: total credit hours of credit-bearing enrollments in a term,
+      divided by 12 (canonical full-time threshold). Excludes audit enrollments.
+    owner: "Illuminate Data Product"
+    authority: vendor-canonical
+    last_reviewed: 2026-01-15
+    entity: Student
+    measure_sql: |
+      SELECT e.term_id,
+             t.name AS term_name,
+             SUM(e.credit_hours) / 12.0 AS fte
+      FROM enrollments e
+      JOIN terms t ON t.term_id = e.term_id
+      WHERE e.enrollment_type = 'credit'
+      {% if where %}AND {{ where }}{% endif %}
+      GROUP BY e.term_id, t.name
+      ORDER BY MIN(t.ordinal)
+    default_filters: []
+    valid_dimensions:
+      - id: by_term
+        display_name: By term
+        sql: "t.name"
+    synonyms: ["fte", "full-time equivalent", "full-time students"]
+    example_questions:
+      - "How many full-time students do we have?"
+      - "What is our FTE for this term?"
+      - "Show FTE by term."
