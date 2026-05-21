@@ -103,7 +103,10 @@ metrics:
         ON a.term_id = t.term_id
        AND a.activity_date >= (t.end_date - INTERVAL '14 days')
        AND a.activity_date <= t.end_date
-      {% if where %}WHERE {{ where }}{% endif %}
+       {% if where %}AND ({{ where }}){% endif %}
+      -- NOTE: filter is injected into the LEFT JOIN ON-clause so terms with no
+      -- matching activity still appear with active_count=0. A WHERE clause here
+      -- on a.* columns would silently convert this to an INNER JOIN.
       GROUP BY t.term_id, t.name
       ORDER BY MIN(t.ordinal)
     default_filters: []

@@ -124,6 +124,7 @@ def main(db_path: str = "data/seed.duckdb") -> None:
 
             t = next(t for t in TERMS if t[0] == term_id)
             term_start, term_end = t[2], t[3]
+            # floor=1 (not 5) so at_risk_student_count (< 5 events) returns a non-zero count
             n_events = rng.randint(1, 60)
             for _ in range(n_events):
                 day = term_start + timedelta(days=rng.randint(0, (term_end - term_start).days))

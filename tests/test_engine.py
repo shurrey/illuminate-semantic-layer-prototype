@@ -50,3 +50,14 @@ def test_all_metric_sqls_compile():
             f"{mid} SQL does not start with WITH/SELECT"
         )
         assert "LIMIT" in upper, f"{mid} missing LIMIT"
+
+
+def test_every_metric_synonym_is_in_canonical_glossary():
+    """Each phrase listed in a metric's `synonyms` must route via the canonical glossary."""
+    cat = load_canonical()
+    for mid, m in cat.metrics.items():
+        for phrase in m.synonyms:
+            assert cat.glossary.synonyms.get(phrase) == mid, (
+                f"metric {mid} declares synonym {phrase!r} but glossary "
+                f"maps it to {cat.glossary.synonyms.get(phrase)!r}"
+            )

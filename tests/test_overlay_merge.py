@@ -59,8 +59,9 @@ def test_midwest_state_completion_excludes_audits():
     tenant = load_tenant("midwest-state")
     merged = resolve(cat, tenant, "metric.course_completion_rate.v1")
     assert merged.applied_definition == "tenant-override"
-    canonical_sql = merged.canonical.measure_sql
-    assert "audit" not in canonical_sql.lower()
+    # Canonical is inclusive of all enrollment types — no type filter at all.
+    assert "enrollment_type" not in merged.canonical.measure_sql
+    # Overlay restricts the denominator to credit enrollments.
     assert "enrollment_type = 'credit'" in merged.effective_measure_sql
 
 
