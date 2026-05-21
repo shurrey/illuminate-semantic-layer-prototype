@@ -22,6 +22,53 @@ from .orchestrator import Orchestrator
 from .telemetry import Telemetry
 from .warehouse import connect
 
+
+def _lead_value(breakdown: list[dict]) -> str:  # type: ignore[type-arg]
+    """Return the first-row lead value formatted for the demo table.
+
+    Finds the first string column (label) and the most meaningful numeric column
+    (rate > count/avg > ordinal).  Formats rates as percentages, counts as
+    integers, others as 2dp floats. Appends the label in parentheses when present.
+
+    Ordinal / id columns (ending in _ordinal, _id, or named term_id) are skipped
+    when a better candidate exists.
+    """
+    if not breakdown:
+        return "—"
+    first_row = breakdown[0]
+    label = None
+    numeric = None
+
+    _skip_suffixes = ("_ordinal", "_id")
+
+    def _is_skip(col: str) -> bool:
+        return any(col.lower().endswith(s) for s in _skip_suffixes)
+
+    for k, v in first_row.items():
+        if isinstance(v, str) and label is None:
+            label = v
+        if isinstance(v, int | float):
+            if numeric is None:
+                numeric = (k, v)
+            # Prefer a "rate" column over whatever we have so far
+            elif "rate" in k.lower() and "rate" not in numeric[0].lower():
+                numeric = (k, v)
+            # Prefer a non-skip column over a skip column
+            elif not _is_skip(k) and _is_skip(numeric[0]):
+                numeric = (k, v)
+
+    if numeric is None:
+        return "—"
+    k, v = numeric
+    if "rate" in k.lower():
+        val = f"{v * 100:.2f}%"
+    elif isinstance(v, int) or (isinstance(v, float) and v == int(v)):
+        val = f"{int(v):,}"
+    else:
+        val = f"{v:.2f}"
+    return f"{val} ({label})" if label else val
+
+
 app = typer.Typer(
     help="Illuminate semantic-layer prototype",
     no_args_is_help=True,
@@ -187,6 +234,93 @@ def ask(
         for r in rows:
             table.add_row(*[str(v) for v in r])
         console.print(table)
+
+
+@app.command()
+def demo(
+    scenarios: Path = typer.Option(  # noqa: B008
+        Path("demo/scenarios.yaml"),
+        help="Path to scenarios YAML file.",
+    ),
+    db: Path = typer.Option(Path("data/seed.duckdb"), help="DuckDB path."),  # noqa: B008
+) -> None:
+    """Run side-by-side demo scenarios across all tenants.
+
+    Shows how the same NL question produces different correct answers for
+    different tenants, depending on which overlay (if any) is active.
+    Works without ANTHROPIC_API_KEY (glossary fallback) or with it (orchestrator).
+    """
+    import yaml
+
+    data = yaml.safe_load(Path(scenarios).read_text())
+    canonical = load_canonical()
+    con = connect(db)
+    tel = Telemetry()
+    api_key_set = bool(os.environ.get("ANTHROPIC_API_KEY", "").strip())
+    orch = Orchestrator(telemetry=tel) if api_key_set else None
+
+    table = Table(
+        title="Same question — different correct answers",
+        caption="lead value = first-term row; per-term metrics will vary by term",
+        show_header=True,
+        header_style="bold",
+    )
+    table.add_column("scenario", style="bold")
+    table.add_column("tenant")
+    table.add_column("applied_definition")
+    table.add_column("lead value")
+    table.add_column("owner")
+
+    notes = []
+    for sc in data["scenarios"]:
+        for tenant_id in sc["tenants"]:
+            tenant_obj = None if tenant_id == "canonical" else load_tenant(tenant_id)
+            try:
+                if orch is not None:
+                    result = orch.ask(sc["question"], canonical, tenant_obj, con)
+                    merged = result.metric_used
+                    lead = _lead_value(result.breakdown)
+                else:
+                    mid = _resolve_metric_id(sc["question"], canonical, tenant_obj)
+                    if mid is None:
+                        table.add_row(
+                            sc["id"],
+                            tenant_id,
+                            "[yellow]no-match[/yellow]",
+                            "—",
+                            "—",
+                        )
+                        continue
+                    merged = resolve(canonical, tenant_obj, mid)
+                    sql = compile_sql(merged, filters=merged.effective_filters, dimensions=[])
+                    rows = con.execute(sql).fetchall()
+                    cols = [d[0] for d in con.description]
+                    breakdown = [dict(zip(cols, r, strict=True)) for r in rows]
+                    lead = _lead_value(breakdown)
+
+                colored = (
+                    f"[green]{merged.applied_definition}[/green]"
+                    if merged.applied_definition == "canonical"
+                    else f"[magenta]{merged.applied_definition}[/magenta]"
+                )
+                owner = merged.overlay.owner if merged.overlay else merged.canonical.owner
+                table.add_row(sc["id"], tenant_id, colored, lead, owner)
+            except Exception as e:
+                table.add_row(
+                    sc["id"],
+                    tenant_id,
+                    "[red]error[/red]",
+                    "—",
+                    str(e)[:40],
+                )
+        notes.append((sc["id"], sc.get("note", "")))
+
+    console.print(table)
+    console.print()
+    console.rule("[bold]Scenario notes[/bold]")
+    for sid, note in notes:
+        if note:
+            console.print(f"[bold]{sid}[/bold] — {note}")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,20 @@
+scenarios:
+  - id: retention
+    question: "What's our retention rate?"
+    tenants: [canonical, lone-star, midwest-state]
+    note: "Lone Star restricts to degree-seeking + fall-to-fall; Midwest State uses canonical."
+
+  - id: fte
+    question: "How many full-time students do we have?"
+    tenants: [canonical, lone-star, midwest-state]
+    note: "Midwest State divides credit-hours by 15; canonical and Lone Star use 12."
+
+  - id: persistence
+    question: "What's our persistence rate?"
+    tenants: [canonical, lone-star, midwest-state]
+    note: "Lone Star's local glossary maps 'persistence' to retention; the others do not."
+
+  - id: completion
+    question: "What's our course completion rate?"
+    tenants: [canonical, lone-star, midwest-state]
+    note: "Midwest State excludes audit enrollments from the denominator."
