@@ -13,6 +13,7 @@ synonyms:
   "pass rate": "metric.course_completion_rate.v1"
   "at risk": "metric.at_risk_student_count.v1"
   "at-risk students": "metric.at_risk_student_count.v1"
+  "students at risk": "metric.at_risk_student_count.v1"
   "time to degree": "metric.average_time_to_degree.v1"
   "average time to degree": "metric.average_time_to_degree.v1"
   "dfw": "metric.dfw_rate.v1"
