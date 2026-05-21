@@ -84,3 +84,158 @@ metrics:
       - "How many full-time students do we have?"
       - "What is our FTE for this term?"
       - "Show FTE by term."
+
+  - id: metric.active_student.v1
+    version: "1.0.0"
+    display_name: Active student count
+    description: >
+      Distinct students with at least one activity event in the last 14 days of each term.
+    owner: "Illuminate Data Product"
+    authority: vendor-canonical
+    last_reviewed: 2026-01-15
+    entity: Student
+    measure_sql: |
+      SELECT t.term_id,
+             t.name AS term_name,
+             COUNT(DISTINCT a.student_id) AS active_count
+      FROM terms t
+      LEFT JOIN activity a
+        ON a.term_id = t.term_id
+       AND a.activity_date >= (t.end_date - INTERVAL '14 days')
+       AND a.activity_date <= t.end_date
+      {% if where %}WHERE {{ where }}{% endif %}
+      GROUP BY t.term_id, t.name
+      ORDER BY MIN(t.ordinal)
+    default_filters: []
+    valid_dimensions: []
+    synonyms: ["active student", "active students", "engagement", "active learners"]
+    example_questions:
+      - "How many active students do we have?"
+      - "Show active students by term."
+      - "Engagement trend"
+
+  - id: metric.course_completion_rate.v1
+    version: "1.0.0"
+    display_name: Course completion rate
+    description: >
+      Share of finalized enrollments (excluding in-progress NULL grades) that received a
+      passing grade (A-D). 'W' withdrawals count as non-completions.
+    owner: "Illuminate Data Product"
+    authority: vendor-canonical
+    last_reviewed: 2026-01-15
+    entity: Enrollment
+    measure_sql: |
+      SELECT e.term_id,
+             t.name AS term_name,
+             ROUND(
+               1.0 * SUM(CASE WHEN e.final_grade IN ('A','B','C','D') THEN 1 ELSE 0 END)
+               / NULLIF(SUM(CASE WHEN e.final_grade IS NOT NULL THEN 1 ELSE 0 END), 0),
+               4
+             ) AS completion_rate
+      FROM enrollments e
+      JOIN terms t ON t.term_id = e.term_id
+      WHERE e.final_grade IS NOT NULL
+      {% if where %}AND {{ where }}{% endif %}
+      GROUP BY e.term_id, t.name
+      ORDER BY MIN(t.ordinal)
+    default_filters: []
+    valid_dimensions: []
+    synonyms: ["completion rate", "course completion", "pass rate", "course completion rate"]
+    example_questions:
+      - "What is our course completion rate?"
+      - "Completion rate by term"
+      - "How are students passing?"
+
+  - id: metric.at_risk_student_count.v1
+    version: "1.0.0"
+    display_name: At-risk student count
+    description: >
+      Distinct students with fewer than 5 activity events in the latest term they were enrolled.
+      Threshold is hardcoded canonical; tenants may override the threshold via the overlay.
+    owner: "Illuminate Data Product"
+    authority: vendor-canonical
+    last_reviewed: 2026-01-15
+    entity: Student
+    measure_sql: |
+      WITH latest_term AS (
+        SELECT a.student_id, MAX(t.ordinal) AS max_ordinal
+        FROM activity a
+        JOIN terms t ON t.term_id = a.term_id
+        GROUP BY a.student_id
+      ),
+      recent_activity AS (
+        SELECT a.student_id, COUNT(*) AS n_events
+        FROM activity a
+        JOIN terms t ON t.term_id = a.term_id
+        JOIN latest_term lt
+          ON lt.student_id = a.student_id
+         AND lt.max_ordinal = t.ordinal
+        {% if where %}WHERE {{ where }}{% endif %}
+        GROUP BY a.student_id
+      )
+      SELECT COUNT(*) AS at_risk_count
+      FROM recent_activity
+      WHERE n_events < 5
+    default_filters: []
+    valid_dimensions: []
+    synonyms: ["at risk", "at-risk students", "students at risk", "at risk count"]
+    example_questions:
+      - "How many students are at risk?"
+      - "At-risk student count"
+      - "Which students need outreach?"
+
+  - id: metric.average_time_to_degree.v1
+    version: "1.0.0"
+    display_name: Average time to degree
+    description: >
+      Mean number of terms between a student's first-enrollment term and the term they were
+      conferred a degree. Computed over students with a degree conferred.
+    owner: "Illuminate Data Product"
+    authority: vendor-canonical
+    last_reviewed: 2026-01-15
+    entity: Student
+    measure_sql: |
+      SELECT ROUND(AVG(CAST(td.ordinal - ft.ordinal AS DOUBLE)), 2) AS avg_terms_to_degree
+      FROM degrees_conferred d
+      JOIN terms td ON td.term_id = d.term_id
+      JOIN students s ON s.student_id = d.student_id
+      JOIN terms ft ON ft.term_id = s.first_enroll_term_id
+      {% if where %}WHERE {{ where }}{% endif %}
+    default_filters: []
+    valid_dimensions: []
+    synonyms: ["time to degree", "average time to degree", "degree time", "completion time"]
+    example_questions:
+      - "What's our average time to degree?"
+      - "How long do students take to graduate?"
+
+  - id: metric.dfw_rate.v1
+    version: "1.0.0"
+    display_name: DFW rate
+    description: >
+      Share of finalized enrollments with a final grade of D, F, or W (withdraw). The
+      complement-of-completion view: a high DFW rate signals struggling cohorts.
+    owner: "Illuminate Data Product"
+    authority: vendor-canonical
+    last_reviewed: 2026-01-15
+    entity: Enrollment
+    measure_sql: |
+      SELECT e.term_id,
+             t.name AS term_name,
+             ROUND(
+               1.0 * SUM(CASE WHEN e.final_grade IN ('D','F','W') THEN 1 ELSE 0 END)
+               / NULLIF(SUM(CASE WHEN e.final_grade IS NOT NULL THEN 1 ELSE 0 END), 0),
+               4
+             ) AS dfw_rate
+      FROM enrollments e
+      JOIN terms t ON t.term_id = e.term_id
+      WHERE e.final_grade IS NOT NULL
+      {% if where %}AND {{ where }}{% endif %}
+      GROUP BY e.term_id, t.name
+      ORDER BY MIN(t.ordinal)
+    default_filters: []
+    valid_dimensions: []
+    synonyms: ["dfw", "dfw rate", "d/f/w rate", "fail rate"]
+    example_questions:
+      - "What's our DFW rate?"
+      - "DFW by term"
+      - "How many students fail or withdraw?"

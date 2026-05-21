@@ -43,3 +43,37 @@ def test_overlay_sql_compiles_to_safe_select():
     upper = sql.strip().upper()
     assert upper.startswith("WITH")
     assert "LIMIT" in upper
+
+
+def test_midwest_state_fte_overrides_divisor():
+    cat = load_canonical()
+    tenant = load_tenant("midwest-state")
+    merged = resolve(cat, tenant, "metric.fte.v1")
+    assert merged.applied_definition == "tenant-override"
+    assert "/ 15" in merged.effective_measure_sql or "/15" in merged.effective_measure_sql
+    assert "/ 12" not in merged.effective_measure_sql
+
+
+def test_midwest_state_completion_excludes_audits():
+    cat = load_canonical()
+    tenant = load_tenant("midwest-state")
+    merged = resolve(cat, tenant, "metric.course_completion_rate.v1")
+    assert merged.applied_definition == "tenant-override"
+    canonical_sql = merged.canonical.measure_sql
+    assert "audit" not in canonical_sql.lower()
+    assert "enrollment_type = 'credit'" in merged.effective_measure_sql
+
+
+def test_midwest_state_no_retention_override_falls_back_canonical():
+    cat = load_canonical()
+    tenant = load_tenant("midwest-state")
+    merged = resolve(cat, tenant, "metric.retention_rate.term_to_term.v1")
+    assert merged.applied_definition == "canonical"
+    assert merged.overlay is None
+
+
+def test_midwest_state_first_year_retention_synonym():
+    tenant = load_tenant("midwest-state")
+    assert (
+        tenant.glossary.synonyms["first-year retention"] == "metric.retention_rate.term_to_term.v1"
+    )

@@ -1,0 +1,35 @@
+overrides:
+  - canonical_id: metric.fte.v1
+    owner: "Midwest State Office of Institutional Research"
+    last_reviewed: 2026-03-10
+    diff_description: "R1 convention: divide by 15 credit hours per FTE instead of canonical 12."
+    measure_sql: |
+      SELECT e.term_id,
+             t.name AS term_name,
+             SUM(e.credit_hours) / 15.0 AS fte
+      FROM enrollments e
+      JOIN terms t ON t.term_id = e.term_id
+      WHERE e.enrollment_type = 'credit'
+      {% if where %}AND {{ where }}{% endif %}
+      GROUP BY e.term_id, t.name
+      ORDER BY MIN(t.ordinal)
+
+  - canonical_id: metric.course_completion_rate.v1
+    owner: "Midwest State Office of Institutional Research"
+    last_reviewed: 2026-03-10
+    diff_description: "Audit enrollments excluded from completion-rate denominator (R1 standard practice)."
+    measure_sql: |
+      SELECT e.term_id,
+             t.name AS term_name,
+             ROUND(
+               1.0 * SUM(CASE WHEN e.final_grade IN ('A','B','C','D') THEN 1 ELSE 0 END)
+               / NULLIF(SUM(CASE WHEN e.final_grade IS NOT NULL THEN 1 ELSE 0 END), 0),
+               4
+             ) AS completion_rate
+      FROM enrollments e
+      JOIN terms t ON t.term_id = e.term_id
+      WHERE e.final_grade IS NOT NULL
+        AND e.enrollment_type = 'credit'
+      {% if where %}AND {{ where }}{% endif %}
+      GROUP BY e.term_id, t.name
+      ORDER BY MIN(t.ordinal)

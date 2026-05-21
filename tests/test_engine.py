@@ -21,3 +21,32 @@ def test_glossary_maps_canonical_synonyms():
     cat = load_canonical()
     assert cat.glossary.synonyms["retention"] == "metric.retention_rate.term_to_term.v1"
     assert cat.glossary.synonyms["fte"] == "metric.fte.v1"
+
+
+def test_canonical_has_seven_metrics():
+    cat = load_canonical()
+    assert len(cat.metrics) == 7
+    expected = {
+        "metric.retention_rate.term_to_term.v1",
+        "metric.fte.v1",
+        "metric.active_student.v1",
+        "metric.course_completion_rate.v1",
+        "metric.at_risk_student_count.v1",
+        "metric.average_time_to_degree.v1",
+        "metric.dfw_rate.v1",
+    }
+    assert set(cat.metrics.keys()) == expected
+
+
+def test_all_metric_sqls_compile():
+    """Every canonical metric must compile to safe SELECT/CTE SQL."""
+    from semantic_layer.engine import compile_sql
+
+    cat = load_canonical()
+    for mid, m in cat.metrics.items():
+        sql = compile_sql(m, filters=[], dimensions=[])
+        upper = sql.strip().upper()
+        assert upper.startswith("WITH") or upper.startswith("SELECT"), (
+            f"{mid} SQL does not start with WITH/SELECT"
+        )
+        assert "LIMIT" in upper, f"{mid} missing LIMIT"
