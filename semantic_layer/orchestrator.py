@@ -216,7 +216,21 @@ class Orchestrator:
         tenant_id = tenant.id if tenant else "canonical"
         cache_key = (tenant_id, question)
         if cache_key in self._cache:
-            return self._cache[cache_key]
+            cached = self._cache[cache_key]
+            # Log cache hits so the telemetry table reflects every demo query.
+            if self.telemetry is not None:
+                self.telemetry.log_query(
+                    tenant_id=tenant_id,
+                    question=question,
+                    metric_id=cached.metric_used.id,
+                    applied_definition=cached.metric_used.applied_definition,
+                    sql=cached.sql_executed,
+                    execution_ms=0.0,
+                    success=True,
+                    error="cache_hit",
+                    narrative=cached.narrative,
+                )
+            return cached
 
         plan: QueryPlan | None = None
         merged: MergedMetric | None = None

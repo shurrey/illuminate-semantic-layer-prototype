@@ -121,7 +121,8 @@ async function ask() {
       body: JSON.stringify({ tenant_id: tenant, question }),
     });
     if (!r.ok) {
-      const detail = (await r.json()).detail || r.statusText;
+      let detail = r.statusText;
+      try { detail = (await r.json()).detail || detail; } catch (_) { /* non-JSON body */ }
       $("output").innerHTML = `<div class="error">Error ${r.status}: ${detail}</div>`;
       return;
     }

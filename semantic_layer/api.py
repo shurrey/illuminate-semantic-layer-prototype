@@ -16,7 +16,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from .engine import TENANTS_DIR, load_canonical, load_tenant
+from .engine import TENANTS_DIR, SqlSafetyError, load_canonical, load_tenant
 from .models import QueryResult
 from .orchestrator import Orchestrator, PlannerError
 from .telemetry import Telemetry
@@ -94,5 +94,9 @@ def ask(req: AskRequest) -> QueryResult:
         return orch.ask(req.question, canonical, tenant_obj, con)
     except PlannerError as e:
         raise HTTPException(status_code=400, detail=f"planner error: {e}") from e
+    except SqlSafetyError as e:
+        raise HTTPException(status_code=422, detail=f"unsafe SQL in metric definition: {e}") from e
     except FileNotFoundError as e:
         raise HTTPException(status_code=404, detail=f"tenant not found: {e}") from e
+    finally:
+        con.close()
