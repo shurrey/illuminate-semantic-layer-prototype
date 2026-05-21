@@ -54,16 +54,6 @@ def _resolve_metric_id(
     return None
 
 
-def _print_query_result_glossary(rows, cols, merged) -> None:
-    """Print result table for the glossary fallback path."""
-    table = Table(show_header=True, header_style="bold")
-    for c in cols:
-        table.add_column(c)
-    for r in rows:
-        table.add_row(*[str(v) for v in r])
-    console.print(table)
-
-
 @app.command()
 def ask(
     question: str = typer.Argument(..., help="Natural-language question."),
