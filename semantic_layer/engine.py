@@ -150,12 +150,12 @@ def _validate_select_only(sql: str) -> None:
         raise SqlSafetyError(f"SQL parse failed: {e}") from e
     if not isinstance(parsed, exp.Select):
         raise SqlSafetyError(f"Only SELECT/CTE queries are allowed; got {type(parsed).__name__}")
-    # Collect CTE names (defined in WITH clause) so we don't flag them as external tables.
-    cte_names: set[str] = set()
-    with_clause = parsed.find(exp.With)
-    if with_clause is not None:
-        for cte in with_clause.find_all(exp.CTE):
-            cte_names.add(cte.alias)
+    # CTE references inside FROM show up as Table nodes whose name is the
+    # CTE alias. Exclude those from the allowlist check — only real warehouse
+    # tables should be gated. Use `find_all` directly on `parsed` (not on a
+    # WITH-clause subtree) so nested CTEs are handled, and `alias_or_name`
+    # so unaliased CTEs are still recognized.
+    cte_names = {cte.alias_or_name for cte in parsed.find_all(exp.CTE)}
     referenced = {t.name for t in parsed.find_all(exp.Table)} - cte_names
     bad = referenced - ALLOWED_TABLES
     if bad:
